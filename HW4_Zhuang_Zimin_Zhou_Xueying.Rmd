@@ -1,0 +1,199 @@
+---
+title: "HW4"
+author: "Xueying Zhou, Zimin Zhuang"
+date: "3/19/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+#Problem 1
+##(a)
+Recall the Ito's formula
+$$dV = \frac{\partial V}{\partial t} dV + \frac{\partial V}{\partial r} dr 
+      + \frac{1}{2} \frac{\partial^2 V}{\partial r^2} dr^2$$
+Let $V = e^{\alpha t} (r(t) - b)$, then we have
+\begin{align*}
+\frac{\partial V}{\partial t} &= \alpha e^{\alpha t} (r(t) - b)\\ \\
+\frac{\partial V}{\partial r} &= e^{\alpha t}\\ \\ 
+\frac{\partial^2 V}{\partial r^2} &= 0\\ \\
+\end{align*}
+Substitute into the Ito Formula, we have
+\begin{align*}
+dV &= \alpha e^{\alpha t} (r(t) - b) dt + e^{\alpha t} dr\\ \\
+dV &= \sigma dW(t)
+\end{align*}
+Integrate both sides from $t$ to $t + \Delta$,
+\begin{align*}
+e^{\alpha (t + \Delta)} [r(t+ \Delta) - b]
+&= e^{\alpha t} (r(t) - b) + \sigma [ W(\Delta + t) - W(t)]\\ \\ 
+r(t+ \Delta) - b
+&= e^{- \alpha t} (r(t) - b) + e^{- \alpha (t+ \Delta)} \sigma [ W(\Delta + t) - W(t)]\\ \\
+r(t+ \Delta) &= e^{- \alpha \Delta} r(t) + b(1 - e^{- \alpha \Delta})
+                + \frac{\sigma}{\sqrt{2 \alpha}} \sqrt{1 - e^{-2 \alpha \Delta}} Z
+\end{align*}
+Where $Z \sim N(0, 1)$.
+
+##(b)
+First, we store the values of $\alpha, b,\sigma$ into a $3*18$ matrix for further usage. Each column present one possible combination of the three input parameters.\
+Then we define the function 'OUprocess', as obtained in part $(a)$, to be called iteratively to calculate the values of $r(t)$ within the given time interval $[0,T]$ for a specified combination of all the input parameters.\
+Finally, a loop is built to call the function for $18$ times for all the $18$ combinations, and the results are plotted with corresponding titles clarifying the $\alpha, b,\sigma$ combinations.
+```{r}
+#Input Parameters
+param.alpha <- c(rep(0.1, 6), rep(1, 6), rep(5, 6))
+param.b <- rep(c(-5, -5, -5, 5, 5, 5), 3)
+param.sigma <- rep(c(0.1, 0.2, 0.5), 6)
+#Rowbind parameters
+param <- rbind(param.alpha,param.b, param.sigma)
+#Define a OU process
+OUprocess <- function(alpha, b, sigma, r.ini, T.t, Delta){
+  #Initialize
+  r <- c()
+  t <- 1
+  r[1] <- r.ini
+  #Iterations
+  for (t in 1:(T.t/Delta)){
+    z <- rnorm(1)
+    r[t + 1] <- exp(-alpha * Delta) * r[t] + b*(1 -  exp(-alpha * Delta)) +
+      (sigma / sqrt(2*alpha)) * sqrt(1 - exp(-2 * alpha * Delta)) * z 
+    t <- t + 1
+  }
+  return(r)
+}
+
+#Presenting all 18 combinations
+i <- 1
+for (i in 1:18){
+  #T.t <- 500
+  #Delta <- 1/500
+  #r.ini <- 1
+  result <- OUprocess (param[1, i], param[2, i], param[3, i], 1, 500, 1/500)
+  plot(result, type = "l", xlab = "Interations", ylab = "r(t)",
+       main = paste0("OU process of ", param[1, i], ", ", param[2, i], ", ", param[3, i], "."))
+}
+```
+As shown in the graphs, the value of $\alpha$ presents the speed for $r(t)$ to hit $b$; the value of $\sigma$ presents the volatility.
+
+#Problem 2
+First, we define a function for the Brownian Motion according to its properties that $W(0)=0$ and $W(t) \sim N(0, \sqrt{t})$.\
+Then we calculate the difference by spliting $[0,T]$ into n sub-intervals for the lefthand part and summing up the discrete values to approximate the integral as required. \
+Third, we define the function to be called to obtain the MC estimate of $\sqrt{E[D^2]}$ for a deterministic n with the required $10,000$ observations, and apply it with $n = 10, 100, 1000$ to get the corrosponding results.
+```{r}
+#Define a BM
+i <- 1
+W <- c()
+T.t <- 1
+BM <- function(n, T.t){
+  W[1] <- 0
+  ending <- n + 1
+  for(i in 2:ending){
+    increment <- rnorm(1, 0, sqrt(T.t/n))
+    W[i] <- W[i-1] + increment
+  }
+  return(W)
+}
+
+#Define the calculation of difference D
+D <- function(n, T.t){
+  w <- BM(n, T.t)
+  ito <- 1 - exp(T.t/2) * cos(w[n+1])
+  approx <- 0
+  for(i in 1:n){
+    approx.update <- exp((i-1)*T.t/(2*n)) * sin(w[i]) * (w[i+1]-w[i])
+    approx <- approx + approx.update
+  }
+  d <- approx - ito
+  return(d)
+}
+
+#Defind the MC estimation of sqrt(E(D)^2)
+ED <- function(n,T.t){
+  ed <- rep(0, 10000)
+  i <- 1
+  for (i in 1:10000){
+    ed[i] <- (D(n, T.t))^2
+  }
+  return(sqrt(mean(ed)))
+}
+
+
+#Results for n = 10, 100 and 1000
+ED(10, 1)
+
+ED(100, 1)
+
+ED(1000, 1)
+
+```
+
+#Problem 3
+##(a)
+To apply the Ito's formula, we let $V = log S(t)$, then we have
+\begin{align*}
+\frac{\partial V}{\partial t} &= 0 \\ \\
+\frac{\partial V}{\partial r} &= \frac{1}{S(t)}\\ \\
+\frac{\partial^2 V}{\partial r^2} &= -\frac{1}{S^2(t)}
+\end{align*}
+Therefore,
+$$dV = \frac{1}{S(t)} dS -\frac{1}{S^2(t)} dS^2$$
+with $dS^2 = \sigma^2 S^2(t)dt$
+$$dV = (r - \frac{\sigma^2}{2}) dt + \sigma dW$$
+Integrate both sides from 0 to t, noticing that $S(0) = 1$,
+$$S(t) = e^{(r - \frac{\sigma^2}{2})t + \sigma \sqrt{t}Z}$$
+let $X = (r - \frac{\sigma^2}{2})t + \sigma \sqrt{t}Z$
+\begin{align*}
+E[X]      &= (r - \frac{\sigma^2}{2})t\\ \\
+Var(x)    &= \sigma^2 t\\ \\
+E[S(t)]   &= e^{E[X] + \frac{1}{2} Var(x)}\\ \\
+E[S(t)]   &= e^{rt}\\ \\
+E[S(t_i)]  &= e^{rt_i}\\ \\
+K = E[S_A] &= E[\frac{1}{k} \sum^k_{i = 1} S(t_i)]\\ \\
+           &=\frac{1}{k}E[\sum^k_{i = 1} S(t_i)]\\ \\
+           &=\frac{1}{k} \sum^k_{i = 1} e^{rt_i}]\\ \\
+\end{align*}
+
+##(b)
+First we define the function 'GeoBM' with input parameters $r, \sigma, t$ for the Geometric Brownian Motion to obtain values of $S(t)$ within time interval $[0,t]$, knowing it has the solution 
+$S(t_i) = S(t_{i - 1})e^{(r - \frac{\sigma^2}{2})(t_i-t_{i-1})+\sigma \sqrt{t_i-t_{i-1}}Z}$ \
+Then, we define the function for the Asian Option 'SA' with input parameters $r, \sigma, t$, which is the average of the the stock prices calculated in the first part.
+Then, the function 'K' for $e^{-rT}(S_A - K)_+$ is defined with inputs parameters $r, \sigma, t$. Further, in the function to estimate the price, we build a loop to call 'K' for $10^5$ times as asked, with given parametes $r = 0.11, \sigma = \sqrt{0.3}, (t_1, t_2, t_3, t_4)= (1, 5, 10, 20)$ and obtain their mean to finish the estimation.
+```{r}
+#Define a geometric Brownian motion
+S <- c()
+GeoBM <- function(r, sigma, t){
+  S[1] <- 1
+  for(i in 2:length(t)){
+    diff.t <- t[i] - t[i-1]
+    z  <- rnorm(1, 0, sigma * sqrt(diff.t))
+    log.increment <- r * (diff.t)  - 0.5 * ((sigma)^2) * (diff.t) + z
+    S[i] <- exp(log(S[i - 1]) + log.increment)
+  }
+  return(S)
+}
+
+
+#Define the calculation of SA
+SA <- function(r, sigma, t){
+  s <- GeoBM(r,sigma,t)
+  SA <- (sum(s[2:length(t)])) / (length(t) - 1)
+  return(SA)
+}
+
+K <- function(r,sigma,t){
+  value <- max((SA(r,sigma,t) - sum((exp(r * t[2:length(t)])) / (length(t) - 1))), 0)
+  k <- (exp(-1 *r * t[length(t)])) * value
+  return(k)
+}
+
+#Define the calculation of Price
+P <- function(r, sigma, t, replica){
+  P <- rep(0, replica)
+  for (i in 1:replica){
+  P[i] <- K(r, sigma, t)
+  }
+  return(mean(P))
+}
+
+#Report Estimation
+P(0.11, sqrt(0.3), c(0, 1, 5, 10, 20), 100000)
+```
+
